@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_USER: review_user
+      POSTGRES_PASSWORD: review_pass
+      POSTGRES_DB: reviewdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U review_user -d reviewdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  review-service:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: reviews
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: your_access_key
+      AWS_SECRET_ACCESS_KEY: your_secret_key
+      S3_BUCKET: zuzu-reviews
+      S3_PREFIX: daily/
+    ports:
+      - "8080:8080"
+    command: ["./wait-for-it.sh", "db:5432", "--", "./review-service"]
+    volumes:
+      - ./wait-for-it.sh:/wait-for-it.sh:ro
+    restart: unless-stopped
+
+volumes:
+  db_data:
